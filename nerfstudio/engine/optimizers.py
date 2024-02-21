@@ -83,6 +83,7 @@ class Optimizers:
         self.optimizers = {}
         self.schedulers = {}
         self.parameters = {}
+        self.mute_list = []
         for param_group_name, params in param_groups.items():
             lr_init = config[param_group_name]["optimizer"].lr
             self.optimizers[param_group_name] = config[param_group_name]["optimizer"].setup(params=params)
@@ -123,6 +124,8 @@ class Optimizers:
             grad_scaler: GradScaler to use
         """
         for param_group, optimizer in self.optimizers.items():
+            if param_group in self.mute_list:
+                continue
             max_norm = self.config[param_group]["optimizer"].max_norm
             if max_norm is not None:
                 grad_scaler.unscale_(optimizer)
@@ -133,6 +136,8 @@ class Optimizers:
     def optimizer_step_all(self) -> None:
         """Run step for all optimizers."""
         for param_group, optimizer in self.optimizers.items():
+            if param_group in self.mute_list:
+                continue
             # note that they key is the parameter name
             max_norm = self.config[param_group]["optimizer"].max_norm
             if max_norm is not None:
@@ -146,6 +151,8 @@ class Optimizers:
             step: the current step
         """
         for param_group_name, scheduler in self.schedulers.items():
+            if param_group_name in self.mute_list:
+                continue
             scheduler.step()
             # TODO(ethan): clean this up. why is there indexing into a list?
             lr = scheduler.get_last_lr()[0]
@@ -168,3 +175,9 @@ class Optimizers:
         """
         for k, v in loaded_state.items():
             self.schedulers[k].load_state_dict(v)
+
+    def mute_optimizer(self, param_group_name):
+        self.mute_list.append(param_group_name)
+
+    def clear_mute_optimizer(self):
+        self.mute_list = []

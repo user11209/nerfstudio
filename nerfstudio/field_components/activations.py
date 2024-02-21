@@ -38,8 +38,7 @@ class _TruncExp(Function):
     @custom_bwd
     def backward(ctx, g):
         x = ctx.saved_tensors[0]
-        return g * torch.exp(x.clamp(-15, 15))
-
+        return g * torch.exp(x.clamp(-15, 5))
 
 if TYPE_CHECKING:
 

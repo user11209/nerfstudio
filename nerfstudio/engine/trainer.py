@@ -48,6 +48,12 @@ from nerfstudio.viewer_beta.viewer import Viewer as ViewerBetaState
 TRAIN_INTERATION_OUTPUT = Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, torch.Tensor]]
 TORCH_DEVICE = str
 
+# from zhang:
+import sys
+sys.path.append("/home/zhangjw/nerfstudio/external")
+import flexnerf.utils as utils
+
+import code
 
 @dataclass
 class TrainerConfig(ExperimentConfig):
@@ -153,6 +159,7 @@ class Trainer:
             grad_scaler=self.grad_scaler,
         )
         self.optimizers = self.setup_optimizers()
+        utils.set_global_optimizers(self.optimizers)
 
         # set up viewer if enabled
         viewer_log_path = self.base_dir / self.config.viewer.relative_log_filename
@@ -238,6 +245,7 @@ class Trainer:
         with TimeWriter(writer, EventName.TOTAL_TRAIN_TIME):
             num_iterations = self.config.max_num_iterations
             step = 0
+            last_logged = None
             for step in range(self._start_step, self._start_step + num_iterations):
                 while self.training_state == "paused":
                     time.sleep(0.01)
@@ -278,6 +286,14 @@ class Trainer:
                     writer.put_scalar(name="Train Loss", scalar=loss, step=step)
                     writer.put_dict(name="Train Loss Dict", scalar_dict=loss_dict, step=step)
                     writer.put_dict(name="Train Metrics Dict", scalar_dict=metrics_dict, step=step)
+                    if last_logged == None:
+                        last_logged = metrics_dict["psnr"]
+                    else:
+                        this_logged = metrics_dict["psnr"]
+                        if this_logged < 11 and step > 1600:
+                            self.save_checkpoint(step)
+                            code.interact(local=locals())
+                        last_logged = this_logged
                     # The actual memory allocated by Pytorch. This is likely less than the amount
                     # shown in nvidia-smi since some unused memory can be held by the caching
                     # allocator and some context needs to be created on GPU. See Memory management
@@ -513,7 +529,7 @@ class Trainer:
             writer.put_dict(name="Eval Metrics Dict", scalar_dict=eval_metrics_dict, step=step)
 
         # one eval image
-        if step_check(step, self.config.steps_per_eval_image):
+        if step_check(step+1, self.config.steps_per_eval_image):
             with TimeWriter(writer, EventName.TEST_RAYS_PER_SEC, write=False) as test_t:
                 metrics_dict, images_dict = self.pipeline.get_eval_image_metrics_and_images(step=step)
             writer.put_time(

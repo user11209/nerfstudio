@@ -41,6 +41,8 @@ class FieldHeadNames(Enum):
     SDF = "sdf"
     ALPHA = "alpha"
     GRADIENT = "gradient"
+    CELLID = "cell_id"
+    IMPORTANCE = "importance"
 
 
 class FieldHead(FieldComponent):

@@ -63,6 +63,10 @@ from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 from nerfstudio.pipelines.dynamic_batch import DynamicBatchPipelineConfig
 from nerfstudio.plugins.registry import discover_methods
 
+import sys
+sys.path.insert(0,"/home/zhangjw/nerfstudio")
+from external.flexnerf.flexnerf import FlexNeRFModelConfig
+
 method_configs: Dict[str, TrainerConfig] = {}
 descriptions = {
     "nerfacto": "Recommended real-time model tuned for real captures. This model will be continually updated.",
@@ -78,6 +82,7 @@ descriptions = {
     "generfacto": "Generative Text to NeRF model",
     "neus": "Implementation of NeuS. (slow)",
     "neus-facto": "Implementation of NeuS-Facto. (slow)",
+    "flexnerf": "My implementation of FlexNeRF",
 }
 
 method_configs["nerfacto"] = TrainerConfig(
@@ -573,6 +578,39 @@ method_configs["neus-facto"] = TrainerConfig(
     vis="viewer",
 )
 
+method_configs["flexnerf"] = TrainerConfig(
+    method_name="flexnerf",
+    steps_per_eval_batch=400,
+    steps_per_eval_image=800,
+    steps_per_eval_all_images=100000,
+    steps_per_save=2000,
+    max_num_iterations=89999,
+    mixed_precision=True,
+    pipeline=VanillaPipelineConfig(
+        datamanager=VanillaDataManagerConfig(
+            dataparser=NerfstudioDataParserConfig(train_split_fraction=0.96),
+            train_num_rays_per_batch=4096,
+            eval_num_rays_per_batch=4096,
+        ),
+        model=FlexNeRFModelConfig(eval_num_rays_per_chunk=1 << 10),
+    ),
+    optimizers={
+        "field_features": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15, weight_decay=1e-8),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=0.0001*50, max_steps=200000),
+        },
+        "auxilary_field_network": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15, weight_decay=1e-8),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=0.0001*50, max_steps=200000),
+        },
+        "field_network": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15, weight_decay=1e-8),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=0.0001, max_steps=200000),
+        },
+    },
+    viewer=ViewerConfig(num_rays_per_chunk=1 << 10),
+    vis="viewer",
+)
 
 def merge_methods(methods, method_descriptions, new_methods, new_descriptions, overwrite=True):
     """Merge new methods and descriptions into existing methods and descriptions.
